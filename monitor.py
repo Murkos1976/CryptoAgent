@@ -7,13 +7,14 @@ CHAT_ID = str(os.environ.get("TELEGRAM_CHAT_ID"))
 
 TG_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-CHECK_EVERY_SECONDS = 180
+CHECK_EVERY_SECONDS = 300  # 5 minutes
 
-SOL_BUY = 120.00
-SOL_SELL = 140.00
+# Price levels in CAD
+SOL_BUY = 125.00
+SOL_SELL = 150.00
 
-XRP_BUY = 1.35
-XRP_SELL = 1.55
+XRP_BUY = 1.30
+XRP_SELL = 2.00
 
 last_sol_zone = None
 last_xrp_zone = None
@@ -57,23 +58,25 @@ def send_message(text, keyboard=None):
 
 def send_trade_alert(symbol, action, price):
     keyboard = {
-        "inline_keyboard": [[
-            {
-                "text": "✅ APPROVE",
-                "callback_data": f"APPROVE_{symbol}_{action}"
-            },
-            {
-                "text": "❌ REJECT",
-                "callback_data": f"REJECT_{symbol}_{action}"
-            }
-        ]]
+        "inline_keyboard": [
+            [
+                {
+                    "text": "✅ APPROVE",
+                    "callback_data": f"APPROVE_{symbol}_{action}"
+                },
+                {
+                    "text": "❌ REJECT",
+                    "callback_data": f"REJECT_{symbol}_{action}"
+                }
+            ]
+        ]
     }
 
     digits = 2 if symbol == "SOL" else 4
 
     message = (
         f"🚨 {symbol} {action} ALERT\n\n"
-        f"1 {symbol} = ${price:.{digits}f} USD\n"
+        f"1 {symbol} = C${price:.{digits}f} CAD\n"
         f"Suggested amount: C$50\n\n"
         f"Approve or reject this trade idea."
     )
@@ -108,7 +111,11 @@ def check_callbacks():
         if not callback:
             continue
 
-        if str(callback["message"]["chat"]["id"]) != CHAT_ID:
+        callback_chat_id = str(
+            callback["message"]["chat"]["id"]
+        )
+
+        if callback_chat_id != CHAT_ID:
             continue
 
         choice = callback.get("data", "")
@@ -156,21 +163,24 @@ def xrp_zone(price):
 
 
 print("CryptoAgent started.")
-print("Prices are in USD.")
-print("Checking every 3 minutes.")
+print("Prices are in CAD.")
+print("Checking every 5 minutes.")
 
 
 while True:
     try:
-        sol_price = get_price("SOLUSD")
-        xrp_price = get_price("XRPUSD")
+        sol_price = get_price("SOLCAD")
+        xrp_price = get_price("XRPCAD")
 
-        send_message(
+        price_message = (
             "📊 CRYPTO PRICE UPDATE\n\n"
-            f"1 SOL = ${sol_price:.2f} USD\n"
-            f"1 XRP = ${xrp_price:.4f} USD\n\n"
-            "Next check in 3 minutes."
+            f"1 SOL = C${sol_price:.2f} CAD\n"
+            f"1 XRP = C${xrp_price:.4f} CAD\n\n"
+            "Next check in 5 minutes."
         )
+
+        print(price_message)
+        send_message(price_message)
 
         current_sol_zone = sol_zone(sol_price)
         current_xrp_zone = xrp_zone(xrp_price)
@@ -198,5 +208,5 @@ while True:
     except Exception as e:
         print("Monitor error:", e)
 
-    print("Next check in 3 minutes...")
+    print("Next check in 5 minutes...")
     time.sleep(CHECK_EVERY_SECONDS)
