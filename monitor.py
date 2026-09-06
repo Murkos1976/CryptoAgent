@@ -78,4 +78,4 @@ def check_sol():
         )
 
 
-def check_x
+def check_xrp
