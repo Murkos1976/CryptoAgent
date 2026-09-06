@@ -90,6 +90,20 @@ def wait_for_response():
                 timeout=20
             )
 
+      
             if choice == "TEST_APPROVE":
                 print("APPROVED")
                 print("TEST ONLY - NO TRADE EXECUTED")
+          return
+
+            if choice == "TEST_REJECT":
+                print("REJECTED")
+                print("NO TRADE EXECUTED")
+                return
+
+        time.sleep(1)
+
+
+if _name_ == "_main_":
+    send_test_trade()
+    wait_for_response()
