@@ -1,73 +1,81 @@
-import time
-import subprocess
-import requests
 import os
-import sys
+import time
+import requests
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+
+CHECK_EVERY_SECONDS = 300  # 5 minutes
+
+# Alert rules in USD
+SOL_BUY = 120.00
+SOL_SELL = 140.00
+
+XRP_BUY = 1.35
+XRP_SELL = 1.55
 
 
 def send_telegram(message):
-    if not TOKEN or not CHAT_ID:
+    if not BOT_TOKEN or not CHAT_ID:
         print("Telegram settings are missing.")
         return
 
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    for i in range(0, len(message), 4000):
-        data = {
-            "chat_id": CHAT_ID,
-            "text": message[i:i + 4000]
-        }
+    try:
+        requests.post(
+            url,
+            data={
+                "chat_id": CHAT_ID,
+                "text": message
+            },
+            timeout=20
+        ).raise_for_status()
 
-        try:
-            response = requests.post(url, data=data, timeout=10)
+        print("Telegram alert sent.")
 
-            if response.status_code == 200:
-                print("Telegram alert sent.")
-            else:
-                print("Telegram error:", response.text)
-
-        except Exception as e:
-            print("Telegram error:", e)
+    except Exception as e:
+        print("Telegram error:", e)
 
 
-print("==============================")
-print("      CRYPTO AGENT MONITOR")
-print("==============================")
-print("Checking every 5 minutes...")
-print("Press Ctrl+C to stop.")
+def get_kraken_price(pair):
+    url = f"https://api.kraken.com/0/public/Ticker?pair={pair}"
+
+    response = requests.get(url, timeout=20)
+    response.raise_for_status()
+
+    data = response.json()
+
+    if data.get("error"):
+        raise Exception(data["error"])
+
+    result = data["result"]
+    key = list(result.keys())[0]
+
+    return float(result[key]["c"][0])
 
 
-while True:
+def check_sol():
+    price = get_kraken_price("SOLUSD")
 
-    print("\n==============================")
-    print("NEW MARKET CHECK")
-    print("==============================")
+    print(f"SOL: ${price:.2f} USD")
 
-    result = subprocess.run(
-        [sys.executable, "agent.py"],
-        capture_output=True,
-        text=True
-    )
+    if price <= SOL_BUY:
+        send_telegram(
+            f"🟢 SOL BUY ALERT\n\n"
+            f"Price: ${price:.2f} USD\n"
+            f"Buy level: ${SOL_BUY:.2f}\n"
+            f"Suggested amount: C$50\n\n"
+            f"Open Kraken to place the trade."
+        )
 
-    output = result.stdout
-    print(output)
+    elif price >= SOL_SELL:
+        send_telegram(
+            f"🔴 SOL SELL ALERT\n\n"
+            f"Price: ${price:.2f} USD\n"
+            f"Sell level: ${SOL_SELL:.2f}\n\n"
+            f"Open Kraken to place the trade."
+        )
 
-    message = (
-        "🚨 CRYPTO AGENT UPDATE 🚨\n\n"
-        + output
-        + "\nNext check in 5 minutes."
-    )
 
-    send_telegram(message)
-
-    print("\nSaving market history...")
-
-    subprocess.run(
-        [sys.executable, "history.py"]
-    )
-
-    print("\nNext check in 5 minutes...")
-    time.sleep(300)
+def check_x
