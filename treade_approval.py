@@ -47,12 +47,11 @@ def send_test_trade():
 
 def wait_for_response():
     offset = None
+
     print("Waiting for APPROVE or REJECT...")
 
     while True:
-        params = {
-            "timeout": 20
-        }
+        params = {"timeout": 20}
 
         if offset is not None:
             params["offset"] = offset
@@ -63,6 +62,7 @@ def wait_for_response():
             timeout=30
         )
 
+        response.raise_for_status()
         data = response.json()
 
         for update in data.get("result", []):
@@ -90,11 +90,10 @@ def wait_for_response():
                 timeout=20
             )
 
-      
             if choice == "TEST_APPROVE":
                 print("APPROVED")
                 print("TEST ONLY - NO TRADE EXECUTED")
-          return
+                return
 
             if choice == "TEST_REJECT":
                 print("REJECTED")
