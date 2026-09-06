@@ -102,7 +102,7 @@ def wait_for_response():
 
         time.sleep(1)
 
-
 if _name_ == "_main_":
     send_test_trade()
     wait_for_response()
+
