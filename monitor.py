@@ -5,9 +5,9 @@ import requests
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-CHECK_EVERY_SECONDS = 300  # 5 minutes
+CHECK_EVERY_SECONDS = 180  # 3 minutes
 
-# Alert rules in USD
+# Alert levels in USD
 SOL_BUY = 120.00
 SOL_SELL = 140.00
 
@@ -23,22 +23,23 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     try:
-        requests.post(
+        response = requests.post(
             url,
             data={
                 "chat_id": CHAT_ID,
                 "text": message
             },
             timeout=20
-        ).raise_for_status()
+        )
 
-        print("Telegram alert sent.")
+        response.raise_for_status()
+        print("Telegram message sent.")
 
     except Exception as e:
         print("Telegram error:", e)
 
 
-def get_kraken_price(pair):
+def get_price(pair):
     url = f"https://api.kraken.com/0/public/Ticker?pair={pair}"
 
     response = requests.get(url, timeout=20)
@@ -55,27 +56,37 @@ def get_kraken_price(pair):
     return float(result[key]["c"][0])
 
 
-def check_sol():
-    price = get_kraken_price("SOLUSD")
+print("CryptoAgent started.")
+print("Prices are in USD.")
+print("Checking every 3 minutes.")
 
-    print(f"SOL: ${price:.2f} USD")
 
-    if price <= SOL_BUY:
-        send_telegram(
-            f"🟢 SOL BUY ALERT\n\n"
-            f"Price: ${price:.2f} USD\n"
-            f"Buy level: ${SOL_BUY:.2f}\n"
-            f"Suggested amount: C$50\n\n"
-            f"Open Kraken to place the trade."
+while True:
+    try:
+        sol_price = get_price("SOLUSD")
+        xrp_price = get_price("XRPUSD")
+
+        message = (
+            "📊 CRYPTO PRICE UPDATE\n\n"
+            f"SOL\n"
+            f"1 SOL = ${sol_price:.2f} USD\n"
         )
 
-    elif price >= SOL_SELL:
-        send_telegram(
-            f"🔴 SOL SELL ALERT\n\n"
-            f"Price: ${price:.2f} USD\n"
-            f"Sell level: ${SOL_SELL:.2f}\n\n"
-            f"Open Kraken to place the trade."
+        if sol_price <= SOL_BUY:
+            message += "🟢 BUY LEVEL\n"
+        elif sol_price >= SOL_SELL:
+            message += "🔴 SELL LEVEL\n"
+        else:
+            message += "⚪ WAIT\n"
+
+        message += (
+            "\n"
+            f"XRP\n"
+            f"1 XRP = ${xrp_price:.4f} USD\n"
         )
 
-
-def check_xrp
+        if xrp_price <= XRP_BUY:
+            message += "🟢 BUY LEVEL\n"
+        elif xrp_price >= XRP_SELL:
+            message += "🔴 SELL LEVEL\n"
+        else:
