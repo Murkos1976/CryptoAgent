@@ -6,54 +6,69 @@ import hmac
 import urllib.parse
 import requests
 
-API_KEY = os.environ.get("KRAKEN_API_KEY")
-API_SECRET = os.environ.get("KRAKEN_API_SECRET")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+CHAT_ID = str(os.environ.get("TELEGRAM_CHAT_ID"))
 
-API_URL = "https://api.kraken.com"
-API_PATH = "/0/private/AddOrder"
+KRAKEN_API_KEY = os.environ.get("KRAKEN_API_KEY")
+KRAKEN_API_SECRET = os.environ.get("KRAKEN_API_SECRET")
 
-nonce = str(int(time.time() * 1000))
+TELEGRAM_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-data = {
-    "nonce": nonce,
-    "ordertype": "market",
-    "type": "buy",
-    "volume": "0.1",
-    "pair": "SOLCAD",
-    "validate": "true"
-}
+KRAKEN_URL = "https://api.kraken.com"
+KRAKEN_PATH = "/0/private/AddOrder"
 
-postdata = urllib.parse.urlencode(data)
 
-message = API_PATH.encode() + hashlib.sha256(
-    (nonce + postdata).encode()
-).digest()
+def send_approval_request():
+    message = (
+        "CryptoAgent Trade Test\n\n"
+        "SOL - BUY\n"
+        "Amount: C$25\n\n"
+        "Approve Kraken validation?"
+    )
 
-signature = base64.b64encode(
-    hmac.new(
-        base64.b64decode(API_SECRET),
-        message,
-        hashlib.sha512
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "✅ APPROVE",
+                    "callback_data": "KRAKEN_APPROVE"
+                },
+                {
+                    "text": "❌ REJECT",
+                    "callback_data": "KRAKEN_REJECT"
+                }
+            ]
+        ]
+    }
+
+    response = requests.post(
+        f"{TELEGRAM_URL}/sendMessage",
+        json={
+            "chat_id": CHAT_ID,
+            "text": message,
+            "reply_markup": keyboard
+        },
+        timeout=20
+    )
+
+    response.raise_for_status()
+    print("Approval request sent to Telegram.")
+
+
+def kraken_validation_test():
+    nonce = str(int(time.time() * 1000))
+
+    data = {
+        "nonce": nonce,
+        "ordertype": "market",
+        "type": "buy",
+        "volume": "0.1",
+        "pair": "SOLCAD",
+        "validate": "true"
+    }
+
+    postdata = urllib.parse.urlencode(data)
+
+    message = KRAKEN_PATH.encode() + hashlib.sha256(
+        (nonce + postdata).encode()
     ).digest()
-).decode()
-
-headers = {
-    "API-Key": API_KEY,
-    "API-Sign": signature
-}
-
-response = requests.post(
-    API_URL + API_PATH,
-    headers=headers,
-    data=data,
-    timeout=20
-)
-
-result = response.json()
-
-if result.get("error"):
-    print("Kraken trade permission test error:", result["error"])
-else:
-    print("Kraken trading permission: OK")
-    print("VALIDATION ONLY - NO TRADE EXECUTED")
-    print(result.get("result", {}))
