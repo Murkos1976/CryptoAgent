@@ -60,6 +60,8 @@ def send_message(text):
 
 def get_prices():
     try:
-        url = (
-            "https://api.coingecko.com/api/v3/simple/price"
-            "?
+   url = (
+    "https://api.coingecko.com/api/v3/simple/price"
+    "?ids=solana,ripple,ethereum,stellar"
+    "&vs_currencies=cad"
+)
