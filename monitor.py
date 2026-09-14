@@ -206,5 +206,5 @@ def main():
 # START
 # =====================================
 
-if _name_ == "_main_":
-    main()
+if_name_==_main_=:
+  main()
