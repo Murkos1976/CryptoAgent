@@ -1,80 +1,48 @@
 import os
 import time
 import requests
+from datetime import datetime
+
+# =========================
+# TELEGRAM SETTINGS
+# =========================
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN is missing")
+
+if not TELEGRAM_CHAT_ID:
+    raise ValueError("TELEGRAM_CHAT_ID is missing")
 
 
-# =========================================================
+# =========================
 # SETTINGS
-# =========================================================
+# =========================
 
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+CHECK_INTERVAL = 300  # 5 minutes
 
-# Check prices every 5 minutes
-CHECK_EVERY_SECONDS = 300
-
-# Alert levels in CAD
-SOL_BUY = 125.00
-SOL_SELL = 150.00
-
-XRP_BUY = 1.30
-XRP_SELL = 2.00
+COINS = {
+    "SOL": "SOLCAD",
+    "XRP": "XRPCAD",
+    "ETH": "ETHCAD",
+    "XLM": "XLMCAD",
+}
 
 
-# Keep track of alert zones so the bot does not repeat
-# the same alert every 5 minutes.
-last_sol_zone = None
-last_xrp_zone = None
+# =========================
+# GET PRICE FROM KRAKEN
+# =========================
 
-
-# =========================================================
-# TELEGRAM
-# =========================================================
-
-def send_message(text):
-    if not BOT_TOKEN or not CHAT_ID:
-        print("Telegram settings are missing.")
-        return False
+def get_kraken_price(pair):
+    url = "https://api.kraken.com/0/public/Ticker"
 
     try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
-        response = requests.post(
-            url,
-            data={
-                "chat_id": CHAT_ID,
-                "text": text
-            },
-            timeout=20
-        )
-
-        if response.status_code != 200:
-            print("Telegram error:", response.text)
-            return False
-
-        return True
-
-    except Exception as e:
-        print("Telegram exception:", e)
-        return False
-
-
-# =========================================================
-# GET CRYPTO PRICES FROM KRAKEN
-# =========================================================
-
-def get_prices():
-    try:
-        url = "https://api.kraken.com/0/public/Ticker"
-
-        params = {
-            "pair": "SOLCAD,XRPCAD,ETHCAD,XLMCAD"
-        }
-
         response = requests.get(
             url,
-            params=params,
-            timeout=20
+            params={"pair": pair},
+            timeout=15
         )
 
         response.raise_for_status()
@@ -82,79 +50,122 @@ def get_prices():
         data = response.json()
 
         if data.get("error"):
-            if len(data["error"]) > 0:
-                print("Kraken API error:", data["error"])
-                return None
+            print(f"Kraken error for {pair}: {data['error']}")
+            return None
 
         result = data.get("result", {})
 
-        prices = {}
-
-        for pair_name, ticker in result.items():
-
-            pair_upper = pair_name.upper()
-
-            # Current/latest trade price
-            current_price = float(ticker["c"][0])
-
-            if "SOL" in pair_upper:
-                prices["SOL"] = current_price
-
-            elif "XRP" in pair_upper:
-                prices["XRP"] = current_price
-
-            elif "ETH" in pair_upper:
-                prices["ETH"] = current_price
-
-            elif "XLM" in pair_upper:
-                prices["XLM"] = current_price
-
-        required = ["SOL", "XRP", "ETH", "XLM"]
-
-        missing = [
-            coin for coin in required
-            if coin not in prices
-        ]
-
-        if missing:
-            print("Missing Kraken prices:", missing)
-            print("Kraken result:", result)
+        if not result:
+            print(f"No Kraken result for {pair}")
             return None
 
-        print("Prices:", prices)
+        ticker = next(iter(result.values()))
 
-        return prices
+        return float(ticker["c"][0])
 
     except Exception as e:
-        print("Price error:", e)
+        print(f"Error getting {pair}: {e}")
         return None
 
 
-# =========================================================
-# SOL ALERTS
-# =========================================================
+# =========================
+# TELEGRAM
+# =========================
 
-def check_sol_alert(price):
-    global last_sol_zone
+def send_telegram(message):
+    url = (
+        f"https://api.telegram.org/bot"
+        f"{TELEGRAM_BOT_TOKEN}/sendMessage"
+    )
 
-    if price <= SOL_BUY:
-        zone = "BUY"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+    }
 
-        if last_sol_zone != zone:
-            send_message(
-                "🟢 SOL BUY ALERT\n"
-                f"1 SOL = C${price:.2f} CAD\n"
-                f"Buy level = C${SOL_BUY:.2f} CAD"
-            )
+    try:
+        response = requests.post(
+            url,
+            data=payload,
+            timeout=15
+        )
 
-    elif price >= SOL_SELL:
-        zone = "SELL"
+        response.raise_for_status()
 
-        if last_sol_zone != zone:
-            send_message(
-                "🔴 SOL SELL ALERT\n"
-                f"1 SOL = C${price:.2f} CAD\n"
-                f"Sell level = C${SOL_SELL:.2f} CAD"
-            )
+        print("Telegram message sent successfully.")
 
+    except Exception as e:
+        print(f"Telegram error: {e}")
+
+
+# =========================
+# BUILD PRICE MESSAGE
+# =========================
+
+def build_price_message():
+
+    prices = {}
+
+    for symbol, pair in COINS.items():
+        prices[symbol] = get_kraken_price(pair)
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    message = "💰 Crypto Prices (CAD)\n\n"
+
+    if prices["SOL"] is not None:
+        message += f"◎ SOL: ${prices['SOL']:,.2f} CAD\n"
     else:
+        message += "◎ SOL: unavailable\n"
+
+    if prices["XRP"] is not None:
+        message += f"✕ XRP: ${prices['XRP']:,.4f} CAD\n"
+    else:
+        message += "✕ XRP: unavailable\n"
+
+    if prices["ETH"] is not None:
+        message += f"◆ ETH: ${prices['ETH']:,.2f} CAD\n"
+    else:
+        message += "◆ ETH: unavailable\n"
+
+    if prices["XLM"] is not None:
+        message += f"★ XLM: ${prices['XLM']:,.4f} CAD\n"
+    else:
+        message += "★ XLM: unavailable\n"
+
+    message += f"\n🕒 {now}"
+
+    return message
+
+
+# =========================
+# MAIN LOOP
+# =========================
+
+def main():
+
+    print("CryptoAgent started.")
+    print("Sending prices every 5 minutes.")
+
+    while True:
+
+        try:
+            message = build_price_message()
+
+            print(message)
+
+            send_telegram(message)
+
+        except Exception as e:
+            print(f"Main loop error: {e}")
+
+        print("Waiting 5 minutes...")
+        time.sleep(CHECK_INTERVAL)
+
+
+# =========================
+# START
+# =========================
+
+if _name_ == "_main_":
+    main()
