@@ -127,11 +127,6 @@ def build_price_message():
     else:
         message += "◆ ETH: unavailable\n"
 
-    if prices["XLM"] is not None:
-        message += f"★ XLM: ${prices['XLM']:,.4f} CAD\n"
-    else:
-        message += "★ XLM: unavailable\n"
-
     message += f"\n🕒 {now}"
 
     return message
