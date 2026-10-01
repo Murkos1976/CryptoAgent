@@ -27,7 +27,6 @@ COINS = {
     "SOL": "SOLCAD",
     "XRP": "XRPCAD",
     "ETH": "ETHCAD",
-    "XLM": "XLMCAD",
 }
 
 
